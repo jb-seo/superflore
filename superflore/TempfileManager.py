@@ -44,7 +44,8 @@ class TempfileManager:
         if self.temp_path:
             info("Cleaning up temporary directory %s" % self.temp_path)
             try:
-                shutil.rmtree(self.temp_path)
+                #shutil.rmtree(self.temp_path)
+                pass
             except OSError as ex:
                 if ex.errno == errno.EPERM:
                     err("Failed to rmtree %s" % self.temp_path)

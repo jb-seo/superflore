@@ -71,7 +71,7 @@ def regenerate_installer(
             for f in glob.glob('%s*.patch' % patch_path)
         ]
     if preserve_existing and existing:
-        ok("recipe for package '%s' up to date, skpping..." % pkg)
+        ok("recipe for package '%s' up to date, skipping..." % pkg)
         return None, []
     elif existing:
         overlay.repo.remove_file(existing[0])
@@ -88,10 +88,10 @@ def regenerate_installer(
     except UnresolvedDependency:
         dep_err = 'Failed to resolve required dependencies for'
         err("{0} package {1}!".format(dep_err, pkg))
-        unresolved = current.recipe.get_unresolved()
+        unresolved = current.recipe.get_unresolved_cache()
         for dep in unresolved:
             err(" unresolved: \"{}\"".format(dep))
-        return None, current.recipe.get_unresolved()
+        return None, unresolved
     except NoPkgXml:
         err("Could not fetch pkg!")
         return None, []
@@ -107,14 +107,15 @@ def regenerate_installer(
     )
     success_msg = 'Successfully generated installer for package'
     ok('{0} \'{1}\'.'.format(success_msg, pkg))
-    recipe_name = '{0}/recipes-ros-{1}/{2}/{2}_{3}.bb'.format(
+    recipe_file_name = '{0}/recipes-ros-{1}/{2}/{2}_{3}.bb'.format(
         overlay.repo.repo_dir,
         distro.name,
         pkg.replace('_', '-'),
         version
     )
     try:
-        with open('{0}'.format(recipe_name), "w") as recipe_file:
+        with open('{0}'.format(recipe_file_name), "w") as recipe_file:
+            ok('Writing recipe {0}'.format(recipe_file_name))
             recipe_file.write(recipe_text)
     except Exception as e:
         err("Failed to write recipe to disk!")
@@ -126,6 +127,7 @@ def _gen_recipe_for_package(
     distro, pkg_name, pkg, repo, ros_pkg,
     pkg_rosinstall, tar_dir, md5_cache, sha256_cache, patches, incs
 ):
+    pkg_names = get_package_names(distro)
     pkg_dep_walker = DependencyWalker(distro)
     pkg_buildtool_deps = pkg_dep_walker.get_depends(pkg_name, "buildtool")
     pkg_build_deps = pkg_dep_walker.get_depends(pkg_name, "build")
@@ -144,17 +146,17 @@ def _gen_recipe_for_package(
     )
     # add run dependencies
     for rdep in pkg_run_deps:
-        pkg_recipe.add_depend(rdep)
+        pkg_recipe.add_build_depend(rdep, rdep in pkg_names[0])
 
     # add build dependencies
     for bdep in pkg_build_deps:
-        pkg_recipe.add_depend(bdep)
+        pkg_recipe.add_build_depend(bdep, bdep in pkg_names[0])
 
     # add build tool dependencies
     for tdep in pkg_buildtool_deps:
-        pkg_recipe.add_depend(tdep)
+        pkg_recipe.add_build_depend(tdep, tdep in pkg_names[0])
 
-    # parse throught package xml
+    # parse through package xml
     try:
         pkg_xml = ros_pkg.get_package_xml(distro.name)
     except Exception:
@@ -165,6 +167,7 @@ def _gen_recipe_for_package(
     pkg_recipe.license = pkg_fields.upstream_license
     pkg_recipe.description = pkg_fields.description
     pkg_recipe.homepage = pkg_fields.homepage
+    pkg_recipe.build_type = pkg_fields.build_type
     return pkg_recipe
 
 

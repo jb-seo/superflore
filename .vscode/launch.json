@@ -1,0 +1,57 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "superflore-gen-meta-pkgs",
+            "type": "python",
+            "request": "launch",
+            "program": "${env:HOME}/.local/bin/superflore-gen-meta-pkgs",
+            "stopOnEntry": true,
+            "console": "none",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SUPERFLORE_GITHUB_TOKEN": "",
+                "ROSDEP_DEBUG": "true"
+            },
+            "args": [
+                "--dry-run",
+                "--ros-distro",
+                "bouncy",
+            ]
+        },
+        {
+            "name": "superflore-check-ebuilds",
+            "type": "python",
+            "request": "launch",
+            "program": "${env:HOME}/.local/bin/superflore-check-ebuilds",
+            "stopOnEntry": true,
+            "console": "none",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SUPERFLORE_GITHUB_TOKEN": ""
+            },
+            "args": [
+            ]
+        },
+        {
+            "name": "superflore-gen-ebuilds",
+            "type": "python",
+            "request": "launch",
+            "program": "${env:HOME}/.local/bin/superflore-gen-ebuilds",
+            "stopOnEntry": true,
+            "console": "none",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SUPERFLORE_GITHUB_TOKEN": ""
+            },
+            "args": [
+                "--dry-run",
+                "--ros-distro",
+                "crystal"
+            ]
+        },
+    ]
+}

@@ -29,7 +29,9 @@ import tarfile
 from time import gmtime, strftime
 from urllib.request import urlretrieve
 
+from superflore.generators.bitbake.oe_query import OpenEmbeddedLayersDB
 from superflore.exceptions import NoPkgXml
+from superflore.exceptions import UnresolvedDependency
 from superflore.utils import get_license
 from superflore.utils import get_pkg_version
 from superflore.utils import info
@@ -37,6 +39,10 @@ from superflore.utils import resolve_dep
 
 
 class yoctoRecipe(object):
+
+    resolved_deps_cache = set()
+    unresolved_deps_cache = set()
+
     def __init__(
         self, name, distro, src_uri, tar_dir,
         md5_cache, sha256_cache, patches, incs
@@ -49,7 +55,8 @@ class yoctoRecipe(object):
         self.pkg_xml = None
         self.author = "OSRF"
         self.license = None
-        self.depends = list()
+        self.depends = set()
+        self.depends_external = set()
         self.license_line = None
         self.archive_name = None
         self.license_md5 = None
@@ -65,6 +72,7 @@ class yoctoRecipe(object):
                     open(self.getArchiveName(), 'rb').read()).hexdigest()
         self.src_sha256 = sha256_cache[self.getArchiveName()]
         self.src_md5 = md5_cache[self.getArchiveName()]
+        self.build_type = 'catkin'
 
     def getFolderName(self):
         return self.name.replace("-", "_") + "-" + str(self.version)
@@ -95,7 +103,7 @@ class yoctoRecipe(object):
         if os.path.exists(self.getArchiveName()):
             info("using cached archive for package '%s'..." % self.name)
         else:
-            info("downloading archive version for package '%s'..." % self.name)
+            info("downloading archive version for package '%s' from %s..." % (self.name, self.src_uri))
             urlretrieve(self.src_uri, self.getArchiveName())
 
     def extractArchive(self):
@@ -103,9 +111,13 @@ class yoctoRecipe(object):
         tar.extractall()
         tar.close()
 
-    def add_depend(self, depend):
-        if depend not in self.depends:
-            self.depends.append(depend)
+    def add_build_depend(self, depend, internal=True):
+        if internal:
+            if depend not in self.depends_external:
+                self.depends.add(depend)
+        else:
+            if depend not in self.depends:
+                self.depends_external.add(depend)
 
     def get_src_location(self):
         """
@@ -119,6 +131,38 @@ class yoctoRecipe(object):
         return '{0}-{1}-{2}-{3}-{4}'.format(dirs[1], dirs[3],
                                             dirs[4], dirs[5],
                                             dirs[6]).replace('.tar.gz', '')
+
+    def get_patches_line(self):
+        ret = ''
+        if self.patch_files:
+            ret += 'SRC_URI += "\\\n'
+            ret += ''.join([' ' * 4 + 'file://' + p.lstrip() + ' \\\n' for p in self.patch_files])
+            ret += '"\n\n'
+        return ret
+
+    def get_incs_line(self):
+        ret = ''
+        if self.inc_files:
+            ret += '\n'.join(['require %s' % f for f in self.inc_files])
+        return ret
+
+    def convert_recipe_name(self, dep):
+        return dep.replace('_', '-')
+
+    def get_bbclass_extend(self, name):
+        if not name in set(['ament-package', 'osrf-pycommon']):
+            return ''
+        return 'BBCLASSEXTEND += "native"'
+
+    def get_inherit_line(self):
+        ret = 'inherit ros'
+        if self.build_type in ['catkin', 'cmake']:
+            ret += '\ninherit cmake'
+        if self.build_type == 'ament_python':
+            ret += '\ninherit setuptools3'
+        elif self.build_type == 'ament_cmake':
+            ret += '\ninherit ament-cmake'
+        return ret + '\n\n'
 
     def get_recipe_text(self, distributor, license_text):
         """
@@ -159,14 +203,49 @@ class yoctoRecipe(object):
         if self.name == 'catkin':
             ret += 'CATKIN_NO_BIN="True"\n\n'
         # DEPEND
-        first = True
         ret += 'DEPENDS = "'
+        has_int_depends = False
+        # Internal
         for dep in sorted(self.depends):
-            if not first:
-                ret += ' '
-            ret += resolve_dep(dep, 'oe')
-            first = False
-        ret += '"\n'
+            ret += self.convert_recipe_name(dep) + ' '
+            has_int_depends = True
+            print('Internal dependency add: ' + self.convert_recipe_name(dep))
+        has_ext_depends = False
+        # External
+        for dep in sorted(self.depends_external):
+            try:
+                has_ext_depends = True
+                for res in resolve_dep(dep, 'oe', self.distro)[0]:
+                    ret += self.convert_recipe_name(res) + ' '
+                    print('External dependency add: ' + self.convert_recipe_name(res))
+            except UnresolvedDependency:
+                dep = self.convert_recipe_name(dep)
+                print('Unresolved dependency: ' + dep)
+                if dep in yoctoRecipe.unresolved_deps_cache:
+                    ret += dep + ' '
+                    print('Failed to resolve (cached): ' + dep)
+                    continue
+                if dep in yoctoRecipe.resolved_deps_cache:
+                    ret += dep + ' '
+                    print('Resolved in OE (cached): ' + dep)
+                    continue
+                oe_query = OpenEmbeddedLayersDB()
+                oe_query.query_recipe(dep)
+                if oe_query.exists():
+                    ret += oe_query.name + ' '
+                    yoctoRecipe.resolved_deps_cache.add(dep)
+                    print('Resolved in OE: ' + dep + ' as ' + oe_query.name + ' in ' + oe_query.layer)
+                else:
+                    ret += dep + ' '
+                    yoctoRecipe.unresolved_deps_cache.add(dep)
+                    print('Failed to resolve: ' + dep)
+        ret = ret.rstrip() + '"\n'
+        if not has_int_depends and not has_ext_depends:
+            print('Recipe ' + self.name + ' has no dependencies!')
+        elif not has_int_depends:
+            print('Recipe ' + self.name + ' has no internal dependencies!')
+        elif not has_ext_depends:
+            print('Recipe ' + self.name + ' has no external dependencies!')
 
         # SRC_URI
         self.src_uri = self.src_uri.replace(self.name, '${PN}')
@@ -177,11 +256,23 @@ class yoctoRecipe(object):
         ret += 'S = "${WORKDIR}/'
         ret += self.get_src_location() + '"\n\n'
         # Check for patches
-        if self.patch_files:
-            ret += 'SRC_URI += "\\\n'
-            ret += ' \\\n'.join(self.patch_files) + '"\n\n'
-        if self.inc_files:
-            self.inc_files = ['require %s' % f for f in self.inc_files]
-            ret += '\n'.join(self.inc_files)
-        ret += 'inherit catkin\n'
+        ret += self.get_patches_line()
+        # Check for incs
+        ret += self.get_incs_line()
+        # Inherits
+        ret += self.get_inherit_line()
+        # BBCLASSEXTEND
+        ret += self.get_bbclass_extend(self.name)
         return ret
+
+    @staticmethod
+    def get_unresolved_cache():
+        return yoctoRecipe.unresolved_deps_cache
+
+    @staticmethod
+    def reset_resolved_cache():
+        yoctoRecipe.resolved_deps_cache = set()
+
+    @staticmethod
+    def reset_unresolved_cache():
+        yoctoRecipe.unresolved_deps_cache = set()

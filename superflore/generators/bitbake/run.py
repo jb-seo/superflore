@@ -20,6 +20,7 @@ from superflore.CacheManager import CacheManager
 from superflore.generate_installers import generate_installers
 from superflore.generators.bitbake.gen_packages import regenerate_installer
 from superflore.generators.bitbake.ros_meta import RosMeta
+from superflore.generators.bitbake.yocto_recipe import yoctoRecipe
 from superflore.parser import get_parser
 from superflore.repo_instance import RepoInstance
 from superflore.TempfileManager import TempfileManager
@@ -40,6 +41,7 @@ active_distros = ['indigo', 'kinetic', 'lunar']
 
 
 def main():
+    os.environ["ROS_OS_OVERRIDE"] = "oe"
     preserve_existing = True
     overlay = None
     parser = get_parser('Deploy ROS packages into Yocto Linux')
@@ -73,8 +75,8 @@ def main():
             err('Failed to file PR!')
             err('reason: {0}'.format(e))
             sys.exit(1)
-    repo_org = 'allenh1'
-    repo_name = 'meta-ros'
+    repo_org = 'andre-rosa'
+    repo_name = 'meta-ros2'
     if args.upstream_repo:
         repo_org, repo_name = url_to_repo_org(args.upstream_repo)
     # open cached tar file if it exists
@@ -92,7 +94,7 @@ def main():
         if not args.only:
             pr_comment = pr_comment or (
                 'Superflore yocto generator began regeneration of all '
-                'packages form ROS distribution(s) %s on Meta-ROS from '
+                'packages from ROS distribution(s) %s on Meta-ROS from '
                 'commit %s.' % (
                     selected_targets,
                     overlay.repo.get_last_hash()
@@ -101,7 +103,7 @@ def main():
         else:
             pr_comment = pr_comment or (
                 'Superflore yocto generator began regeneration of package(s)'
-                ' %s from ROS distro %s from Meta-ROS from commit %s.' % (
+                ' %s from ROS distribution(s) %s on Meta-ROS from commit %s.' % (
                     args.only,
                     args.ros_distro,
                     overlay.repo.get_last_hash()
@@ -111,6 +113,8 @@ def main():
         total_installers = dict()
         total_broken = set()
         total_changes = dict()
+        yoctoRecipe.reset_resolved_cache()
+        yoctoRecipe.reset_unresolved_cache()
         if args.tar_archive_dir:
             sha256_filename = '%s/sha256_cache.pickle' % args.tar_archive_dir
             md5_filename = '%s/md5_cache.pickle' % args.tar_archive_dir
@@ -141,7 +145,7 @@ def main():
                 regen_dict[args.ros_distro] = args.only
                 overlay.commit_changes(args.ros_distro)
                 if args.dry_run:
-                    save_pr(overlay, args.only, pr_comment)
+                    save_pr(overlay, args.only, '', pr_comment)
                     sys.exit(0)
                 delta = "Regenerated: '%s'\n" % args.only
                 file_pr(overlay, delta, '', pr_comment, distro=args.ros_distro)
