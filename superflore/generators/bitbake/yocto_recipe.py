@@ -66,9 +66,6 @@ class yoctoRecipe(object):
         self.src_sha256 = sha256_cache[self.getArchiveName()]
         self.src_md5 = md5_cache[self.getArchiveName()]
 
-    def getFolderName(self):
-        return self.name.replace("-", "_") + "-" + str(self.version)
-
     def getArchiveName(self):
         if not self.archive_name:
             self.archive_name = self.tar_dir + "/" \
