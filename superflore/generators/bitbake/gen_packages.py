@@ -44,26 +44,27 @@ def regenerate_installer(
     if pkg not in pkg_names:
         raise RuntimeError("Unknown package '%s'" % pkg)
 
+    # target recipe directory
+    recipe_path='{0}/recipes-ros-{1}/{2}/'.format(
+            overlay.repo.repo_dir,
+            distro.name,
+            pkg.replace('_', '-')
+        )
+
     # check for an existing recipe
-    existing = glob.glob(
-        '{0}/recipes-ros-{1}/{2}/*.bb'.format(
-            overlay.repo.repo_dir,
-            distro.name,
-            pkg
-        )
-    )
+    existing = [
+        f.replace(overlay.repo.repo_dir + '/', '')
+        for f in glob.glob('{0}*.bb'.format(recipe_path))
+    ]
     # check for .inc files
-    inc_files = None
-    inc_files = glob.glob(
-        '{0}/recipes-ros-{1}/{2}/*.inc'.format(
-            overlay.repo.repo_dir,
-            distro.name,
-            pkg
-        )
-    )
+    inc_files = [
+        f.replace(recipe_path, '')
+        for f in glob.glob('{0}*.inc'.format(recipe_path))
+    ]
+
     # check for patches
-    patch_path = '/recipes-ros-{0}/{1}/files/'.format(distro.name, pkg)
-    patch_path = overlay.repo.repo_dir + patch_path
+    patch_path = '{0}files/'.format(recipe_path, pkg)
+
     patches = None
     if os.path.exists(patch_path):
         patches = [
@@ -74,7 +75,7 @@ def regenerate_installer(
         ok("recipe for package '%s' up to date, skipping..." % pkg)
         return None, []
     elif existing:
-        overlay.repo.remove_file(existing[0])
+        overlay.repo.remove_file(existing[0], True)
     try:
         current = oe_installer(
             distro, pkg, tar_dir, md5_cache, sha256_cache, patches, inc_files

@@ -143,16 +143,17 @@ class yoctoRecipe(object):
     def get_incs_line(self):
         ret = ''
         if self.inc_files:
-            ret += '\n'.join(['require %s' % f for f in self.inc_files])
-        return ret
+            for f in self.inc_files:
+                ret += 'require %s\n' % f
+        return ret + '\n'
 
     def convert_recipe_name(self, dep):
         return dep.replace('_', '-')
 
     def get_bbclass_extend(self, name):
-        if not name in set(['ament-package', 'osrf-pycommon']):
-            return ''
-        return 'BBCLASSEXTEND += "native"'
+        if name.startswith('ament') or name == 'osrf-pycommon':
+            return 'BBCLASSEXTEND += "native"'
+        return ''
 
     def get_inherit_line(self):
         ret = 'inherit ros'
@@ -161,7 +162,10 @@ class yoctoRecipe(object):
         if self.build_type == 'ament_python':
             ret += '\ninherit setuptools3'
         elif self.build_type == 'ament_cmake':
-            ret += '\ninherit ament-cmake'
+            if self.name.startswith("ament-cmake"):
+                ret += '\ninherit cmake python3native'
+            else:
+                ret += '\ninherit ament'
         return ret + '\n\n'
 
     def get_recipe_text(self, distributor, license_text):
@@ -207,17 +211,18 @@ class yoctoRecipe(object):
         has_int_depends = False
         # Internal
         for dep in sorted(self.depends):
-            ret += self.convert_recipe_name(dep) + ' '
-            has_int_depends = True
-            print('Internal dependency add: ' + self.convert_recipe_name(dep))
+            if self.name.startswith('ament') or not dep.startswith('ament'):
+                ret += self.convert_recipe_name(dep) + ' '
+                has_int_depends = True
+                print('Internal dependency add: ' + self.convert_recipe_name(dep))
         has_ext_depends = False
         # External
         for dep in sorted(self.depends_external):
             try:
                 has_ext_depends = True
-                for res in resolve_dep(dep, 'oe', self.distro)[0]:
-                    ret += self.convert_recipe_name(res) + ' '
-                    print('External dependency add: ' + self.convert_recipe_name(res))
+                dep = resolve_dep(dep, 'oe', self.distro)
+                ret += self.convert_recipe_name(dep) + ' '
+                print('External dependency add: ' + self.convert_recipe_name(dep))
             except UnresolvedDependency:
                 dep = self.convert_recipe_name(dep)
                 print('Unresolved dependency: ' + dep)
@@ -257,10 +262,10 @@ class yoctoRecipe(object):
         ret += self.get_src_location() + '"\n\n'
         # Check for patches
         ret += self.get_patches_line()
-        # Check for incs
-        ret += self.get_incs_line()
         # Inherits
         ret += self.get_inherit_line()
+        # Check for incs
+        ret += self.get_incs_line()
         # BBCLASSEXTEND
         ret += self.get_bbclass_extend(self.name)
         return ret
