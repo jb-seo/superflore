@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "superflore-gen-meta-pkgs",
+            "name": "superflore-gen-oe-recipes",
             "type": "python",
             "request": "launch",
-            "program": "${env:HOME}/.local/bin/superflore-gen-meta-pkgs",
+            "program": "${env:HOME}/.local/bin/superflore-gen-oe-recipes",
             "stopOnEntry": false,
             "console": "none",
             "cwd": "${workspaceFolder}",
