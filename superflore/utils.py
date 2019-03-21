@@ -114,12 +114,12 @@ def make_dir(dirname):
             raise e
 
 
-def get_pkg_version(distro, pkg_name):
+def get_pkg_version(distro, pkg_name, is_oe=False):
     pkg = distro.release_packages[pkg_name]
     repo = distro.repositories[pkg.repository_name].release_repository
     maj_min_patch, deb_inc = repo.version.split('-')
     if deb_inc != '0':
-        return '{0}-r{1}'.format(maj_min_patch, deb_inc)
+        return '{0}-{1}{2}'.format(maj_min_patch, '' if is_oe else 'r', deb_inc)
     return maj_min_patch
 
 

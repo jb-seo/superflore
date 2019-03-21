@@ -28,7 +28,8 @@ def generate_installers(
     overlay,                 # repo instance
     gen_pkg_func,            # function to call for generating
     preserve_existing=True,  # don't regenerate if installer exists
-    *args                    # any additional args for gen_pkg_func
+    *args,                   # any additional args for gen_pkg_func
+    **kwargs                 # any additional keyword arguments
 ):
     distro = get_distro(distro_name)
     pkg_names = get_package_names(distro)
@@ -42,7 +43,7 @@ def generate_installers(
 
     info("Generating installers for distro '%s'" % distro_name)
     for i, pkg in enumerate(sorted(pkg_names[0])):
-        version = get_pkg_version(distro, pkg)
+        version = get_pkg_version(distro, pkg, kwargs.get('is_oe', False))
         percent = '%.1f' % (100 * (float(i) / total))
         try:
             current, current_info = gen_pkg_func(
