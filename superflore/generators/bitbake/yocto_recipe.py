@@ -30,41 +30,69 @@ from time import gmtime, strftime
 from urllib.request import urlretrieve
 
 from superflore.exceptions import NoPkgXml
+from superflore.exceptions import UnresolvedDependency
+from superflore.generators.bitbake.oe_query import OpenEmbeddedLayersDB
+from superflore.PackageMetadata import PackageMetadata
+from superflore.utils import err
 from superflore.utils import get_license
 from superflore.utils import get_pkg_version
 from superflore.utils import info
+from superflore.utils import make_dir
+from superflore.utils import ok
 from superflore.utils import resolve_dep
 
 
 class yoctoRecipe(object):
+
+    resolved_deps_cache = set()
+    unresolved_deps_cache = set()
+
     def __init__(
-        self, name, distro, src_uri, tar_dir,
-        md5_cache, sha256_cache, patches, incs
+        self, component_name, num_pkgs, pkg_name, pkg_xml, distro, src_uri, tar_dir,
+        md5_cache, sha256_cache, skip_keys
     ):
-        self.name = name
+        self.component = self.convert_to_oe_name(component_name)
+        self.num_pkgs = num_pkgs
+        self.name = pkg_name
         self.distro = distro.name
-        self.version = get_pkg_version(distro, name, is_oe=True)
-        self.description = ''
+        self.version = get_pkg_version(distro, pkg_name, is_oe=True)
         self.src_uri = src_uri
-        self.pkg_xml = None
-        self.author = "OSRF"
-        self.license = None
-        self.depends = list()
+        self.pkg_xml = pkg_xml
+        if self.pkg_xml:
+            pkg_fields = PackageMetadata(pkg_xml)
+            self.author = pkg_fields.upstream_name + ' <' + pkg_fields.upstream_email + '>'
+            self.license = pkg_fields.upstream_license
+            self.description = pkg_fields.description
+            self.homepage = pkg_fields.homepage
+            self.build_type = pkg_fields.build_type
+        else:
+            self.description = ''
+            self.license = None
+            self.homepage = None
+            self.build_type = 'catkin'
+            self.author = "OSRF"
+        self.depends = set()
+        self.depends_external = set()
+        self.buildtooldepends = set()
+        self.buildtooldepends_external = set()
+        self.rdepends = set()
+        self.rdepends_external = set()
+        self.tdepends = set()
+        self.tdepends_external = set()
         self.license_line = None
         self.archive_name = None
         self.license_md5 = None
-        self.patch_files = patches
-        self.inc_files = incs
         self.tar_dir = tar_dir
         if self.getArchiveName() not in md5_cache or \
            self.getArchiveName() not in sha256_cache:
-                self.downloadArchive()
-                md5_cache[self.getArchiveName()] = hashlib.md5(
-                    open(self.getArchiveName(), 'rb').read()).hexdigest()
-                sha256_cache[self.getArchiveName()] = hashlib.sha256(
-                    open(self.getArchiveName(), 'rb').read()).hexdigest()
+            self.downloadArchive()
+            md5_cache[self.getArchiveName()] = hashlib.md5(
+                open(self.getArchiveName(), 'rb').read()).hexdigest()
+            sha256_cache[self.getArchiveName()] = hashlib.sha256(
+                open(self.getArchiveName(), 'rb').read()).hexdigest()
         self.src_sha256 = sha256_cache[self.getArchiveName()]
         self.src_md5 = md5_cache[self.getArchiveName()]
+        self.skip_keys = skip_keys
 
     def getArchiveName(self):
         if not self.archive_name:
@@ -92,7 +120,8 @@ class yoctoRecipe(object):
         if os.path.exists(self.getArchiveName()):
             info("using cached archive for package '%s'..." % self.name)
         else:
-            info("downloading archive version for package '%s'..." % self.name)
+            info("downloading archive version for package '%s' from %s..." %
+                 (self.name, self.src_uri))
             urlretrieve(self.src_uri, self.getArchiveName())
 
     def extractArchive(self):
@@ -100,9 +129,37 @@ class yoctoRecipe(object):
         tar.extractall()
         tar.close()
 
-    def add_depend(self, depend):
-        if depend not in self.depends:
-            self.depends.append(depend)
+    def add_build_depend(self, depend, internal=True):
+        if depend not in self.skip_keys:
+            if internal:
+                if depend not in self.depends_external:
+                    self.depends.add(depend)
+            else:
+                if depend not in self.depends:
+                    self.depends_external.add(depend)
+
+    def add_buildtool_depend(self, bdepend, internal=True):
+        if bdepend not in self.skip_keys:
+            if internal:
+                if bdepend not in self.buildtooldepends_external:
+                    self.buildtooldepends.add(bdepend)
+            else:
+                if bdepend not in self.buildtooldepends:
+                    self.buildtooldepends_external.add(bdepend)
+
+    def add_run_depend(self, rdepend, internal=True):
+        if rdepend not in self.skip_keys:
+            if not internal:
+                self.rdepends_external.add(rdepend)
+            else:
+                self.rdepends.add(rdepend)
+
+    def add_test_depend(self, tdepend, internal=True):
+        if tdepend not in self.skip_keys:
+            if not internal:
+                self.tdepends_external.add(tdepend)
+            else:
+                self.tdepends.add(tdepend)
 
     def get_src_location(self):
         """
@@ -117,12 +174,78 @@ class yoctoRecipe(object):
                                             dirs[4], dirs[5],
                                             dirs[6]).replace('.tar.gz', '')
 
+    def convert_to_oe_name(self, dep):
+        return dep.replace('_', '-')
+
+    def get_inherit_line(self):
+        return 'inherit ros_${ROSDISTRO}\ninherit ros_${ROS_BUILD_TYPE}\n'
+
+    def get_depends_line(self, var, internal_depends, external_depends, is_native=False, plus_equal=False):
+        def get_spacing_prefix():
+            return '\n' + ' ' * 4
+
+        def get_spacing_suffix(is_native):
+            if is_native:
+                return '-native \\'
+            return ' \\'
+
+        ret = '{0} {1} " \\'.format(var, '+=' if plus_equal else '=')
+        has_int_depends = False
+        has_ext_depends = False
+        for dep in sorted(internal_depends | external_depends):
+            if dep in internal_depends:
+                has_int_depends = True
+                ret += get_spacing_prefix() + self.convert_to_oe_name(dep) + \
+                    get_spacing_suffix(is_native)
+                print('Internal dependency add: ' +
+                      self.convert_to_oe_name(dep))
+            else:
+                has_ext_depends = True
+                try:
+                    for res in resolve_dep(dep, 'oe', self.distro)[0]:
+                        ret += get_spacing_prefix() + self.convert_to_oe_name(res) + \
+                            get_spacing_suffix(is_native)
+                        print('External dependency add: ' +
+                              self.convert_to_oe_name(res))
+                except UnresolvedDependency:
+                    dep = self.convert_to_oe_name(dep)
+                    print('Unresolved dependency: ' + dep)
+                    if dep in yoctoRecipe.unresolved_deps_cache:
+                        ret += get_spacing_prefix() + dep + get_spacing_suffix(is_native)
+                        print('Failed to resolve (cached): ' + dep)
+                        continue
+                    if dep in yoctoRecipe.resolved_deps_cache:
+                        ret += get_spacing_prefix() + dep + get_spacing_suffix(is_native)
+                        print('Resolved in OE (cached): ' + dep)
+                        continue
+                    oe_query = OpenEmbeddedLayersDB()
+                    oe_query.query_recipe(dep)
+                    if oe_query.exists():
+                        ret += get_spacing_prefix() + oe_query.name + get_spacing_suffix(is_native)
+                        yoctoRecipe.resolved_deps_cache.add(dep)
+                        print('Resolved in OE: ' + dep + ' as ' +
+                              oe_query.name + ' in ' + oe_query.layer)
+                    else:
+                        ret += get_spacing_prefix() + dep + get_spacing_suffix(is_native)
+                        yoctoRecipe.unresolved_deps_cache.add(dep)
+                        print('Failed to resolve: ' + dep)
+
+        if not has_int_depends and not has_ext_depends:
+            print(self.name + ' has no ' + var + ' dependencies!')
+        elif not has_int_depends:
+            print(self.name + ' has no ' + var + ' internal dependencies!')
+        elif not has_ext_depends:
+            print(self.name + ' has no ' + var + ' external dependencies!')
+
+        return ret.rstrip() + '\n"\n'
+
     def get_recipe_text(self, distributor, license_text):
         """
         Generate the Yocto Recipe, given the distributor line
         and the license text.
         """
-        ret = "# Copyright " + strftime("%Y", gmtime()) + " "
+        ret = "# Generated by superflore -- DO NOT EDIT\n#\n"
+        ret += "# Copyright " + strftime("%Y", gmtime()) + " "
         ret += distributor + "\n"
         ret += '# Distributed under the terms of the ' + license_text
         ret += ' license\n\n'
@@ -135,10 +258,11 @@ class yoctoRecipe(object):
             ret += 'DESCRIPTION = "None"\n'
         # author
         ret += 'AUTHOR = "' + self.author + '"\n'
+        if self.homepage:
+            ret += 'HOMEPAGE = "' + self.homepage + '"\n'
         # section
         ret += 'SECTION = "devel"\n'
-        # ROS distro
-        ret += 'ROSDISTRO = "%s"\n' % (self.distro)
+        # license
         self.get_license_line()
         if isinstance(self.license, str):
             ret += 'LICENSE = "%s"\n' % get_license(self.license)
@@ -152,33 +276,74 @@ class yoctoRecipe(object):
         ret += ';md5='
         ret += str(self.license_md5)
         ret += '"\n\n'
-        # check for catkin
-        if self.name == 'catkin':
-            ret += 'CATKIN_NO_BIN="True"\n\n'
-        # DEPEND
-        first = True
-        ret += 'DEPENDS = "'
-        for dep in sorted(self.depends):
-            if not first:
-                ret += ' '
-            ret += resolve_dep(dep, 'oe')
-            first = False
-        ret += '"\n'
+        # depends
+        ret += self.get_depends_line('ROS_BUILD_DEPENDS',
+                                     self.depends, self.depends_external)
+        ret += 'DEPENDS = "${ROS_BUILD_DEPENDS}"' + '\n\n'
 
+        ret += self.get_depends_line('ROS_BUILDTOOL_DEPENDS', self.buildtooldepends,
+                                     self.buildtooldepends_external, is_native=True)
+        ret += 'DEPENDS += "${ROS_BUILDTOOL_DEPENDS}"' + '\n\n'
+        ret += self.get_depends_line('RDEPENDS_${PN}',
+                                     self.rdepends, self.rdepends_external, plus_equal=True) + '\n'
+        ret += '# Currently informational only -- see http://www.ros.org/reps/rep-0149.html#dependency-tags.\n'
+        ret += self.get_depends_line('ROS_TEST_DEPENDS',
+                                     self.tdepends, self.tdepends_external) + '\n'
         # SRC_URI
-        self.src_uri = self.src_uri.replace(self.name, '${PN}')
         ret += 'SRC_URI = "' + self.src_uri + ';'
-        ret += 'downloadfilename=${ROS_SP}.tar.gz"\n\n'
+        ret += 'downloadfilename=${ROS_SP}.tar.gz"\n'
         ret += 'SRC_URI[md5sum] = "' + self.src_md5 + '"\n'
         ret += 'SRC_URI[sha256sum] = "' + self.src_sha256 + '"\n'
         ret += 'S = "${WORKDIR}/'
         ret += self.get_src_location() + '"\n\n'
-        # Check for patches
-        if self.patch_files:
-            ret += 'SRC_URI += "\\\n'
-            ret += ' \\\n'.join(self.patch_files) + '"\n\n'
-        if self.inc_files:
-            self.inc_files = ['require %s' % f for f in self.inc_files]
-            ret += '\n'.join(self.inc_files)
-        ret += 'inherit catkin\n'
+
+        ret += 'ROS_BUILD_TYPE = "' + self.build_type + '"\n'
+        ret += 'ROS_RECIPES_TREE = "recipes-ros2"\n\n'
+        # include
+        ret += '# Allow the above settings to be overridden.\n'
+        inc_prefix = 'include ${ROS_LAYERDIR}/'
+        component_path = '/' + self.component + '/' + self.component
+        inc_suffix = '_common.inc\n'
+        ret += inc_prefix + 'recipes-ros' + component_path + inc_suffix
+        ret += inc_prefix + 'recipes-ros2' + component_path + inc_suffix
+        ret += inc_prefix + '${ROS_RECIPES_TREE}' + \
+            component_path + '-${PV}' + inc_suffix
+        if self.num_pkgs > 1:
+            # Generated if component generates more than one package
+            path_prefix = inc_prefix + '${ROS_RECIPES_TREE}/' + self.component
+            ret += path_prefix + '/${BPN}.inc\n'
+            ret += path_prefix + '/${BPN}-${PV}.inc\n'
+        # Inherits
+        ret += '\n' + self.get_inherit_line() + '\n'
         return ret
+
+    @staticmethod
+    def generate_rosdistro_conf(basepath, distro):
+        try:
+            conf_path = "{0}/conf/".format(basepath)
+            make_dir(conf_path)
+            conf_file_path = '{0}generated-{1}.conf'.format(conf_path, distro)
+            with open(conf_file_path, "w") as conf_file:
+                conf_file.write('# Generated by superflore -- DO NOT EDIT\n')
+                conf_file.write('#\n')
+                conf_file.write(
+                    '# Copyright 2019 Open Source Robotics Foundation\n')
+                conf_file.write(
+                    '# Distributed under the terms of the BSD license\n')
+                conf_file.write('\nROS_SF_GENERATION_SCHEME = "1"\n\n')
+                ok('Wrote {0}'.format(conf_file_path))
+        except Exception as e:
+            err("Failed to write conf to disk!")
+            raise e
+
+    @staticmethod
+    def get_unresolved_cache():
+        return yoctoRecipe.unresolved_deps_cache
+
+    @staticmethod
+    def reset_resolved_cache():
+        yoctoRecipe.resolved_deps_cache = set()
+
+    @staticmethod
+    def reset_unresolved_cache():
+        yoctoRecipe.unresolved_deps_cache = set()
