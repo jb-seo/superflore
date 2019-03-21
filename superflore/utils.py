@@ -209,42 +209,14 @@ def get_license(l):
         raise UnknownLicense('bad license')
 
 
-def resolve_dep(pkg, os):
+def resolve_dep(pkg, os, distro=None):
     if os == 'oe':
-        return _resolve_dep_open_embedded(pkg)
+        return resolve_rosdep_key(pkg, 'oe', '', distro)
     elif os == 'gentoo':
         return resolve_rosdep_key(pkg, 'gentoo', '2.4.0')
     else:
         msg = "Unknown target platform '{0}'".format(os)
         raise UnknownPlatform(msg)
-
-
-def _resolve_dep_open_embedded(pkg):
-    """
-    TODO(allenh1): integrate rosdep
-    """
-    if pkg == 'python-yaml':
-        return 'python-pyyaml'
-    elif pkg == 'tinyxml2':
-        return 'libtinyxml2'
-    elif pkg == 'tinyxml':
-        return 'libtinyxml'
-    elif pkg == 'pkg-config':
-        return 'pkgconfig'
-    elif pkg == 'libconsole-bridge':
-        return 'console-bridge'
-    elif pkg == 'libconsole-bridge-dev':
-        return 'console-bridge'
-    elif pkg == 'python-empy':
-        return 'python-empy-native'
-    elif pkg == 'catkin':
-        return 'catkin-native catkin'
-    elif pkg == 'python-catkin-pkg':
-        return 'python-catkin-pkg-native'
-    elif pkg == 'libpoco-dev':
-        return 'poco'
-    else:
-        return pkg.replace('_', '-')
 
 
 def gen_delta_msg(total_changes):
