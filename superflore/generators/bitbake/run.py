@@ -159,7 +159,8 @@ def main():
                         preserve_existing,
                         tar_dir,
                         md5_cache,
-                        sha256_cache
+                        sha256_cache,
+                        is_oe=True,
                     )
                 for key in distro_broken.keys():
                     for pkg in distro_broken[key]:
