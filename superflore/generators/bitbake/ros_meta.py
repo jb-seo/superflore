@@ -20,7 +20,7 @@ from superflore.utils import rand_ascii_str
 
 
 class RosMeta(object):
-    def __init__(self, repo_dir, do_clone, org='allenh1', repo='meta-ros'):
+    def __init__(self, repo_dir, do_clone, org='ros', repo='meta-ros'):
         self.repo = RepoInstance(org, repo, repo_dir, do_clone)
         self.branch_name = 'yocto-bot-%s' % rand_ascii_str()
         info('Creating new branch {0}...'.format(self.branch_name))
