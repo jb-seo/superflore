@@ -73,8 +73,8 @@ def main():
         preserve_existing = False
     if not selected_targets:
         selected_targets = active_distros + ros2_distros
-    repo_org = 'allenh1'
-    repo_name = 'meta-ros'
+    repo_org = 'lgsvl'
+    repo_name = 'meta-ros2'
     if args.upstream_repo:
         repo_org, repo_name = url_to_repo_org(args.upstream_repo)
     # open cached tar file if it exists
