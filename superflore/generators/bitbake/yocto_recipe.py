@@ -362,7 +362,7 @@ class yoctoRecipe(object):
                     '# Copyright 2019 Open Source Robotics Foundation\n')
                 conf_file.write(
                     '# Distributed under the terms of the BSD license\n')
-                conf_file.write('\nROS_SF_GENERATION_SCHEME = "1"\n\n')
+                conf_file.write('\nROS_SUPERFLORE_GENERATION_SCHEME = "1"\n\n')
                 ok('Wrote {0}'.format(conf_file_path))
         except Exception as e:
             err("Failed to write conf {0} to disk!".format(conf_file_path))
