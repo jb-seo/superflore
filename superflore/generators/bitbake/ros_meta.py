@@ -38,8 +38,10 @@ class RosMeta(object):
         info('Adding changes...')
         if distro == 'all' or distro == 'update':
             self.repo.git.add('generated-recipes-*')
+            self.repo.git.add('conf/generated-*')
         else:
             self.repo.git.add('generated-recipes-{0}'.format(distro))
+            self.repo.git.add('conf/generated-{0}.conf'.format(distro))
         commit_msg = {
             'update': 'rosdistro sync, {0}',
             'all': 'regenerate all distros, {0}',
