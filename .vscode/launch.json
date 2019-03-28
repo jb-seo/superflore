@@ -21,7 +21,7 @@
                 "--ros-distro",
                 "bouncy",
                 "--skip-keys",
-                "console_bridge", "libopensplice67", "rti-connext-dds-5.3.1", "rmw_connext_cpp", "rmw_connext_shared_cpp", "rmw_opensplice_cpp", "connext_cmake_module", "rosidl_typesupport_connext_c", "rosidl_typesupport_connext_cpp", "opensplice_cmake_module", "rosidl_typesupport_opensplice_c", "rosidl_typesupport_opensplice_cpp", "urdfdom_headers",
+                "console_bridge", "libopensplice67", "rti-connext-dds-5.3.1", "rmw_connext_cpp", "rmw_connext_shared_cpp", "rmw_opensplice_cpp", "connext_cmake_module", "rosidl_typesupport_connext_c", "rosidl_typesupport_connext_cpp", "opensplice_cmake_module", "rosidl_typesupport_opensplice_c", "rosidl_typesupport_opensplice_cpp", "urdfdom_headers", "libyaml_vendor", "urdfdom",
             ]
         },
         {
