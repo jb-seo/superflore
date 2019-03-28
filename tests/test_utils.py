@@ -155,12 +155,13 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(ret, expect)
 
     def test_url_to_repo_org(self):
-        """Test the owner/repo extraction from a GitHub url"""
+        """Test the owner/repo/branch extraction from a GitHub url"""
         with self.assertRaises(RuntimeError):
-            owner, repo = url_to_repo_org('https://gitlab.com/allenh1/p2os')
-        owner, repo = url_to_repo_org('https://github.com/allenh1/p2os')
+            owner, repo, branch = url_to_repo_org('https://gitlab.com/allenh1/p2os/tree/master')
+        owner, repo, branch = url_to_repo_org('https://github.com/allenh1/p2os/tree/master')
         self.assertEqual(owner, 'allenh1')
         self.assertEqual(repo, 'p2os')
+        self.assertEqual(branch, 'master')
 
     def test_unknown_platform(self):
         """Test resolve_dep with bad OS"""

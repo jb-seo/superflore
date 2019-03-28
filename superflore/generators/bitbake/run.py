@@ -84,8 +84,9 @@ def main():
         selected_targets = active_distros + ros2_distros
     repo_org = 'ros'
     repo_name = 'meta-ros'
+    branch_name = ''
     if args.upstream_repo:
-        repo_org, repo_name = url_to_repo_org(args.upstream_repo)
+        repo_org, repo_name, branch_name = url_to_repo_org(args.upstream_repo)
     # open cached tar file if it exists
     with TempfileManager(args.output_repository_path) as _repo:
         if not args.output_repository_path:
@@ -96,7 +97,8 @@ def main():
             _repo,
             not args.output_repository_path,
             org=repo_org,
-            repo=repo_name
+            repo=repo_name,
+            from_branch=branch_name,
         )
         if not args.only:
             pr_comment = pr_comment or (

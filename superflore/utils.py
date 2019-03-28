@@ -244,7 +244,7 @@ def gen_missing_deps_msg(missing_list):
 
 
 def url_to_repo_org(url):
-    """Extract owner and repository from GitHub url."""
+    """Extract owner, repository and branch from GitHub url."""
     # check that the upstream_repo is a github repo
     if 'github.com' not in url:
         raise RuntimeError(
@@ -252,4 +252,7 @@ def url_to_repo_org(url):
             'repositories is not yet supported!'
         )
     url = url.replace('https://github.com/', '').split('/')
-    return url[0], url[1]
+    if len(url) == 4:
+        # [0]username/[1]repository/[2]tree/[3]branch
+        return url[0], url[1], url[3]
+    return url[0], url[1], ''
