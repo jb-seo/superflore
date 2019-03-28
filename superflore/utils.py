@@ -201,7 +201,7 @@ def get_license(l):
     elif re.search(cc_re, l, f):
         return 'CC-BY-SA-3.0'
     elif re.search(boost_re, l, f):
-        return 'Boost-1.0'
+        return 'BSL-1.0'
     elif re.search(pub_dom_re, l, f):
         return 'public_domain'
     else:
