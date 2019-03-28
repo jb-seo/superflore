@@ -121,8 +121,6 @@ def main():
         total_installers = dict()
         total_broken = set()
         total_changes = dict()
-        yoctoRecipe.reset_resolved_cache()
-        yoctoRecipe.reset_unresolved_cache()
         if args.tar_archive_dir:
             sha256_filename = '%s/sha256_cache.pickle' % args.tar_archive_dir
             md5_filename = '%s/md5_cache.pickle' % args.tar_archive_dir
@@ -151,6 +149,7 @@ def main():
                         sys.exit(1)
                 yoctoRecipe.generate_rosdistro_conf(_repo, args.ros_distro, skip_keys)
                 yoctoRecipe.generate_packagegroup_ros_world(_repo, args.ros_distro)
+                yoctoRecipe.generate_distro_cache(_repo, args.ros_distro)
                 # Commit changes and file pull request
                 regen_dict = dict()
                 regen_dict[args.ros_distro] = args.only
@@ -183,6 +182,7 @@ def main():
                 total_installers[distro] = distro_installers
                 yoctoRecipe.generate_rosdistro_conf(_repo, args.ros_distro, skip_keys)
                 yoctoRecipe.generate_packagegroup_ros_world(_repo, args.ros_distro)
+                yoctoRecipe.generate_distro_cache(_repo, args.ros_distro)
 
         num_changes = 0
         for distro_name in total_changes:

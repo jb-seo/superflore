@@ -104,6 +104,8 @@ def regenerate_installer(
         with open('{0}'.format(recipe_file_name), "w") as recipe_file:
             ok('Writing recipe {0}'.format(recipe_file_name))
             recipe_file.write(recipe_text)
+            current.recipe.get_generated_recipes().append(pkg_name)
+
     except Exception as e:
         err("Failed to write recipe to disk!")
         raise e

@@ -47,6 +47,7 @@ class yoctoRecipe(object):
 
     resolved_deps_cache = set()
     unresolved_deps_cache = set()
+    generated_recipes = []
 
     def __init__(
         self, component_name, num_pkgs, pkg_name, pkg_xml, distro, src_uri, tar_dir,
@@ -413,8 +414,48 @@ class yoctoRecipe(object):
             raise e
 
     @staticmethod
+    def generate_distro_cache(basepath, distro, skip_keys=[]):
+        try:
+            distro_cache_path = "{0}/files/".format(basepath)
+            distro_cache_file_path = '{0}{1}-cache.yaml'.format(distro_cache_path, distro)
+            make_dir(distro_cache_path)
+            from rosdistro import get_index, get_index_url, _get_dist_file_data
+            import gzip
+            try:
+                from urllib.request import urlopen
+            except ImportError:
+                from urllib2 import urlopen
+            try:
+                from cStringIO import StringIO
+            except ImportError:
+                from io import BytesIO as StringIO
+            index = get_index(get_index_url())
+            dist = index.distributions[distro]
+            url = dist['distribution_cache']
+            if url.endswith('.yaml'):
+                yaml_str = urlopen(url, timeout=10).read().decode('utf-8')
+            elif url.endswith('.yaml.gz'):
+                yaml_gz_str = urlopen(url, timeout=10).read()
+                yaml_gz_stream = StringIO(yaml_gz_str)
+                f = gzip.GzipFile(fileobj=yaml_gz_stream, mode='rb')
+                yaml_str = f.read()
+                if not isinstance(yaml_str, str):
+                    yaml_str = yaml_str.decode('utf-8')
+                f.close()
+            with open(distro_cache_file_path, "w") as distro_cache_file:
+                distro_cache_file.write(yaml_str)
+                ok('Wrote {0}'.format(distro_cache_file_path))
+        except Exception as e:
+            err("Failed to write distro cache {0} to disk!".format(distro_cache_file_path))
+            raise e
+
+    @staticmethod
     def get_unresolved_cache():
         return yoctoRecipe.unresolved_deps_cache
+
+    @staticmethod
+    def get_generated_recipes():
+        return yoctoRecipe.generated_recipes
 
     @staticmethod
     def reset_resolved_cache():
@@ -423,3 +464,7 @@ class yoctoRecipe(object):
     @staticmethod
     def reset_unresolved_cache():
         yoctoRecipe.unresolved_deps_cache = set()
+
+    @staticmethod
+    def reset_generated_recipes():
+        yoctoRecipe.generated_recipes = []
