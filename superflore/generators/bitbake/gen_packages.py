@@ -78,9 +78,9 @@ def regenerate_installer(
         for dep in unresolved:
             err(" unresolved: \"{}\"".format(dep))
         return None, unresolved
-    except NoPkgXml:
+    except NoPkgXml as nopkg:
         err("Could not fetch pkg!")
-        return None, []
+        raise nopkg
     except KeyError as ke:
         err("Failed to parse data for package {}!".format(pkg))
         raise ke
