@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import glob
-import os
 
 from rosdistro.dependency_walker import DependencyWalker
 from rosdistro.manifest_provider import get_release_tag
@@ -23,7 +22,6 @@ from rosinstall_generator.distro import get_package_names
 from superflore.exceptions import NoPkgXml
 from superflore.exceptions import UnresolvedDependency
 from superflore.generators.bitbake.yocto_recipe import yoctoRecipe
-from superflore.PackageMetadata import PackageMetadata
 from superflore.utils import err
 from superflore.utils import get_pkg_version
 from superflore.utils import make_dir
@@ -35,23 +33,26 @@ org_license = "BSD"
 
 
 def regenerate_installer(
-    overlay, pkg, distro, preserve_existing, tar_dir, md5_cache, sha256_cache, skip_keys
-):
+        overlay, pkg, distro, preserve_existing, tar_dir, md5_cache,
+        sha256_cache, skip_keys):
     if pkg in skip_keys:
         warn("package '%s' is on skip-keys, skipping..." % pkg)
         return None, []
 
-    make_dir("{0}/generated-recipes-{1}".format(overlay.repo.repo_dir, distro.name))
+    repo_dir = overlay.repo.repo_dir
+    recipes_dir = '{0}/generated-recipes-{1}'.format(repo_dir, distro.name)
+    make_dir(recipes_dir)
     version = get_pkg_version(distro, pkg, is_oe=True)
     pkg_names = get_package_names(distro)[0]
 
     if pkg not in pkg_names:
         raise RuntimeError("Unknown package '%s'" % pkg)
-    component_name = yoctoRecipe.convert_to_oe_name(distro.release_packages[pkg].repository_name)
+    component_name = yoctoRecipe.convert_to_oe_name(
+        distro.release_packages[pkg].repository_name)
     recipe_name = yoctoRecipe.convert_to_oe_name(pkg)
     # check for an existing recipe
     glob_pattern = '{0}/generated-recipes-{1}/{2}/{3}*.bb'.format(
-        overlay.repo.repo_dir,
+        repo_dir,
         distro.name,
         component_name,
         recipe_name
@@ -86,7 +87,7 @@ def regenerate_installer(
         raise ke
     make_dir(
         "{0}/generated-recipes-{1}/{2}".format(
-            overlay.repo.repo_dir,
+            repo_dir,
             distro.name,
             component_name
         )
@@ -94,7 +95,7 @@ def regenerate_installer(
     success_msg = 'Successfully generated installer for package'
     ok('{0} \'{1}\'.'.format(success_msg, pkg))
     recipe_file_name = '{0}/generated-recipes-{1}/{2}/{3}_{4}.bb'.format(
-        overlay.repo.repo_dir,
+        repo_dir,
         distro.name,
         component_name,
         recipe_name,
@@ -120,8 +121,10 @@ def _gen_recipe_for_package(
     pkg_dep_walker = DependencyWalker(distro)
     pkg_buildtool_deps = pkg_dep_walker.get_depends(pkg_name, "buildtool")
     pkg_build_deps = pkg_dep_walker.get_depends(pkg_name, "build")
-    pkg_build_export_deps = pkg_dep_walker.get_depends(pkg_name, "build_export")
-    pkg_buildtool_export_deps = pkg_dep_walker.get_depends(pkg_name, "buildtool_export")
+    pkg_build_export_deps = pkg_dep_walker.get_depends(
+        pkg_name, "build_export")
+    pkg_buildtool_export_deps = pkg_dep_walker.get_depends(
+        pkg_name, "buildtool_export")
     pkg_exec_deps = pkg_dep_walker.get_depends(pkg_name, "exec")
     pkg_test_deps = pkg_dep_walker.get_depends(pkg_name, "test")
     src_uri = pkg_rosinstall[0]['tar']['uri']

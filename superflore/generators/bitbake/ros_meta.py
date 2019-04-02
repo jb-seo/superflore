@@ -20,16 +20,20 @@ from superflore.utils import rand_ascii_str
 
 
 class RosMeta(object):
-    def __init__(self, repo_dir, do_clone, org='ros', repo='meta-ros', from_branch=''):
-        self.repo = RepoInstance(org, repo, repo_dir, do_clone, from_branch=from_branch)
+    def __init__(
+            self, repo_dir, do_clone, org='ros', repo='meta-ros',
+            from_branch=''):
+        self.repo = RepoInstance(
+            org, repo, repo_dir, do_clone, from_branch=from_branch)
         self.branch_name = 'yocto-bot-%s' % rand_ascii_str()
         info('Creating new branch {0}...'.format(self.branch_name))
         self.repo.create_branch(self.branch_name)
 
     def clean_ros_recipe_dirs(self, distro=None):
         if distro:
-            info('Cleaning up generated-recipes-{0} directory...'.format(distro))
-            self.repo.git.rm('-rf', 'generated-recipes-{0}'.format(distro))
+            info(
+                'Cleaning up generated-recipes-{} directory...'.format(distro))
+            self.repo.git.rm('-rf', 'generated-recipes-{}'.format(distro))
         else:
             info('Cleaning up generated-recipes-* directories...')
             self.repo.git.rm('-rf', 'generated-recipes-*')

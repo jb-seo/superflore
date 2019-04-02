@@ -25,7 +25,9 @@ from superflore.utils import ok
 
 
 class RepoInstance(object):
-    def __init__(self, repo_owner, repo_name, repo_dir=None, do_clone=True, from_branch=''):
+    def __init__(
+            self, repo_owner, repo_name, repo_dir=None, do_clone=True,
+            from_branch=''):
         self.repo_owner = repo_owner
         self.repo_name = repo_name
         repo_url = 'https://github.com/{0}/{1}'
@@ -36,7 +38,8 @@ class RepoInstance(object):
         if from_branch:
             self.branch = from_branch
         if do_clone:
-            self.repo = Repo.clone_from(self.repo_url, self.repo_dir, branch=self.branch)
+            self.repo = Repo.clone_from(
+                self.repo_url, self.repo_dir, branch=self.branch)
         else:
             self.repo = Repo(repo_dir)
         self.git = self.repo.git

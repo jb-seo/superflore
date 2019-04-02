@@ -56,7 +56,8 @@ def get_parser(tool_tip, is_generator=True):
         )
         parser.add_argument(
             '--upstream-repo',
-            help='location of the upstream repository as in https://github.com/<owner>/<repository>/tree/<branch>',
+            help='location of the upstream repository as in '
+                 + 'https://github.com/<owner>/<repository>/tree/<branch>',
             type=str
         )
     return parser
