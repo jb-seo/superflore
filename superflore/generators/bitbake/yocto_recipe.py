@@ -388,8 +388,8 @@ class yoctoRecipe(object):
 
     @staticmethod
     def generate_rosdistro_conf(basepath, distro, skip_keys=[]):
-        conf_path = "{0}/conf/".format(basepath)
-        conf_file_path = '{0}generated-{1}.conf'.format(conf_path, distro)
+        conf_path = "{0}/conf/{1}/".format(basepath, distro)
+        conf_file_path = '{0}generated-ros-distro.conf'.format(conf_path)
         try:
             make_dir(conf_path)
             with open(conf_file_path, "w") as conf_file:
